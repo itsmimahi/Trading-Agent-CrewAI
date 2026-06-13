@@ -1,0 +1,148 @@
+# ARTHA — Agent Intent Map
+# This file is the ONLY place that decides which agents run for a given intent.
+# Never use an LLM to decide this. Never hardcode agent lists in Python.
+# Maximum agents per query: 5
+
+intents:
+
+  technical_analysis:
+    description: "Chart patterns, indicators, entry/exit signals"
+    tier1:  [TechnicalAgent, TimingAgent]
+    tier2:  [RiskAgent]          # add only if confidence < 0.7
+    markets: detected_only       # never all 5 by default
+    max_agents: 3
+    llm_tier: lite
+
+  fundamental_analysis:
+    description: "Earnings, revenue, margins, balance sheet, valuation"
+    tier1:  [FundamentalsAgent]
+    tier2:  [MoatAgent, ManagementAgent]
+    markets: detected_only
+    max_agents: 3
+    llm_tier: super
+
+  sentiment_analysis:
+    description: "News sentiment, social buzz, analyst ratings"
+    tier1:  [SentimentAgent]
+    tier2:  [MegatrendResearchAgent]
+    markets: detected_only
+    max_agents: 2
+    llm_tier: lite
+
+  risk_assessment:
+    description: "Portfolio risk, VaR, drawdown, hedging"
+    tier1:  [RiskAgent, RegimeClassifier]
+    tier2:  [MacroCycleAgent]
+    markets: all_active_holdings
+    max_agents: 3
+    llm_tier: none   # RiskAgent = pure Python. RegimeClassifier = pure Python.
+
+  invest_thesis:
+    description: "Build investment thesis for a stock"
+    tier1:  [FundamentalsAgent, MoatAgent, ManagementAgent]
+    tier2:  [MacroCycleAgent]
+    markets: detected_only
+    max_agents: 4
+    llm_tier: super
+
+  portfolio_review:
+    description: "Full portfolio health check, rebalancing"
+    tier1:  [RiskAgent, ThesisAgent, PortfolioOptimizer]
+    tier2:  [MacroCycleAgent, BondAgent]
+    markets: all_active_holdings
+    max_agents: 5
+    llm_tier: super
+
+  trade_order:
+    description: "User wants to buy or sell"
+    tier1:  [TechnicalAgent, RiskAgent, RLAgentV2]
+    tier2:  [TimingAgent, SentimentAgent]
+    markets: detected_only
+    max_agents: 5
+    llm_tier: lite  # RL decides, LLM explains. Lite for signal agents.
+
+  general_advice:
+    description: "General financial guidance, outlook"
+    tier1:  [RegimeClassifier, MacroCycleAgent]
+    tier2:  [RiskAgent]
+    markets: [detected_only, default_IN]
+    max_agents: 3
+    llm_tier: lite
+
+  mutual_fund:
+    description: "MF/SIP performance, recommendations"
+    tier1:  [MutualFundAgent, GoalTrackerAgent]
+    tier2:  [MacroCycleAgent]
+    markets: not_applicable
+    max_agents: 3
+    llm_tier: lite
+
+  megatrend:
+    description: "Thematic investing, technology trends"
+    tier1:  [MegatrendResearchAgent, AdoptionCurveAgent]
+    tier2:  [EnablerIdentifierAgent]
+    markets: global
+    max_agents: 3
+    llm_tier: super
+
+  thesis_check:
+    description: "Quarterly thesis integrity check for a holding"
+    tier1:  [ThesisAgent]
+    tier2:  []
+    markets: holding_market_only
+    max_agents: 1   # ThesisAgent recalls prior agent outputs from LanceDB
+    llm_tier: super
+    note: "ThesisAgent recalls cached FundamentalsAgent/MoatAgent outputs from LanceDB. No re-running of other agents unless cache is stale (>90 days)."
+
+  portfolio_genesis:
+    description: "One-time initial portfolio construction from zero capital"
+    tier1:  [GoalDiscoveryAgent, RiskProfileAgent, UniverseScreenerAgent, InitialPortfolioConstructor, CapitalDeploymentPlanner]
+    tier2:  []
+    markets: global
+    max_agents: 5
+    llm_tier: super
+    note: "Sequential flow, not parallel. Each step depends on previous."
+    gate: preflight_checklist_must_pass  # emergency fund, insurance, zero debt
+
+  bond_analysis:
+    description: "Yield curve, rate cycle, G-Sec opportunities"
+    tier1:  [BondAgent]
+    tier2:  [MacroCycleAgent]
+    markets: not_applicable
+    max_agents: 2
+    llm_tier: lite
+
+  tax_review:
+    description: "STCG/LTCG review, loss harvesting, ELSS timing"
+    tier1:  [TaxAgent]
+    tier2:  [GoalTrackerAgent]
+    markets: all_active_holdings
+    max_agents: 2
+    llm_tier: lite
+
+# Market routing rules
+market_routing:
+  IN:
+    triggers: [".NS", ".BO", "NSE", "BSE", "NIFTY", "SENSEX", "RELIANCE", "TCS", "INFY", "India", "Indian"]
+    exchange_hours_ist: "09:15-15:30"
+    currency: "INR"
+    execution_account: zerodha_mcp
+  US:
+    triggers: ["NASDAQ", "NYSE", "S&P", "DOW", "AAPL", "MSFT", "GOOGL", "NVDA", "US market", ".US"]
+    exchange_hours_et: "09:30-16:00"
+    currency: "USD"
+    execution_account: ibkr_mcp
+  EU:
+    triggers: ["DAX", "FTSE", "CAC", "Euro", "Euronext", "LSE", "European"]
+    currency: "EUR"
+    execution_account: ibkr_mcp
+  APAC:
+    triggers: ["Nikkei", "Hang Seng", "ASX", "SGX", "Japan", "China", "HK", "Asia"]
+    currency: varies
+    execution_account: ibkr_mcp
+  CRYPTO:
+    triggers: ["BTC", "ETH", "Bitcoin", "Ethereum", "crypto", "altcoin"]
+    exchange_hours: "24/7"
+    currency: "USD"
+    execution_account: ibkr_mcp
+  default: IN

@@ -1,0 +1,80 @@
+# ARTHA — LiteLLM Multi-Provider Config
+# All models are free-tier via OpenRouter or Google AI Studio
+# LiteLLM handles routing, fallbacks, and rate limit rotation automatically
+
+model_list:
+
+  # ── SUPER TIER (Reasoning) ─────────────────────────────────────────────
+  # Used by: ThesisAgent, MoatAgent, ManagementAgent, EarningsCallSkill
+  - model_name: artha-super
+    litellm_params:
+      model: openrouter/deepseek/deepseek-r1
+      api_key: os.environ/OPENROUTER_API_KEY
+      response_format: { type: json_object }
+
+  - model_name: artha-super-fallback
+    litellm_params:
+      model: openrouter/nvidia/llama-3.1-nemotron-70b-instruct
+      api_key: os.environ/OPENROUTER_API_KEY
+      response_format: { type: json_object }
+
+  # ── LITE TIER (Fast extraction) ────────────────────────────────────────
+  # Used by: TechnicalAgent, FundamentalsAgent, SentimentAgent, MutualFundAgent
+  - model_name: artha-lite
+    litellm_params:
+      model: gemini/gemini-2.0-flash-exp
+      api_key: os.environ/GOOGLE_AI_KEY
+      response_format: { type: json_object }
+
+  - model_name: artha-lite-fallback
+    litellm_params:
+      model: openrouter/google/gemini-flash-1.5
+      api_key: os.environ/OPENROUTER_API_KEY
+      response_format: { type: json_object }
+
+router_settings:
+  # Rotate immediately on rate limit — do not retry same provider
+  retry_policy:
+    RateLimitError:
+      max_retries: 0
+    APIError:
+      max_retries: 1
+
+  # Fallback chain: if primary rate-limited → try fallback
+  fallbacks:
+    artha-super:     [artha-super-fallback]
+    artha-lite:      [artha-lite-fallback]
+
+  # If ALL providers rate-limited: queue request (handled in artha/mcp/llm_queue.py)
+  queue_fallback: true
+
+# Agent → model tier mapping
+agent_model_map:
+  # Super tier (reasoning-heavy)
+  ThesisAgent:                artha-super
+  MoatAgent:                  artha-super
+  ManagementAgent:            artha-super
+  GoalDiscoveryAgent:         artha-super
+  MegatrendResearchAgent:     artha-super
+  AdoptionCurveAgent:         artha-super
+  EnablerIdentifierAgent:     artha-super
+
+  # Lite tier (structured extraction)
+  TechnicalAgent:             artha-lite
+  TimingAgent:                artha-lite
+  SentimentAgent:             artha-lite
+  FundamentalsAgent:          artha-lite
+  MutualFundAgent:            artha-lite
+  BondAgent:                  artha-lite
+  DividendAgent:              artha-lite
+  TaxAgent:                   artha-lite
+  UniverseScreenerAgent:      artha-lite
+  ThematicBasketConstructor:  artha-lite
+  MacroCycleAgent:            artha-lite
+
+  # No LLM (pure Python — never route to an LLM)
+  RegimeClassifier:           none
+  RiskAgent:                  none
+  IntentClassifier:           none
+  GlobalSignalMonitor:        none
+  IBKRFeedbackBridge:         none
